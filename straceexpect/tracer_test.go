@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package strace_test
+package straceexpect_test
 
 import (
 	"bytes"
@@ -50,15 +50,11 @@ func TestSingleThreaded(t *testing.T) {
 
 	_, err := straceexpect.Trace(w, cmd,
 		// glibc's first action.
-		&straceexpect.SyscallEnter{WantSysno: syscall.SYS_BRK},
+		straceexpect.Sysno(syscall.SYS_BRK),
 		// What test/hello actually does.
-		&straceexpect.SyscallEnter{WantSysno: syscall.SYS_WRITE, WantArgs: [6]straceexpect.Arg{
-			&straceexpect.Int{Want: 1},
-			&straceexpect.ReadWriteBuffer{Want: "hello\n"},
-		}},
-		&straceexpect.SyscallEnter{WantSysno: syscall.SYS_EXIT_GROUP, WantArgs: [6]straceexpect.Arg{
-			&straceexpect.Int{Want: 0},
-		}},
+		straceexpect.WriteEnter(1, "hello\n"),
+		// Exit with status 0.
+		straceexpect.ExitGroup(0),
 	)
 	if os.IsNotExist(err) {
 		t.Errorf("Trace exited with error -- did you compile the test programs? (cd ./test && make all): %v", err)
