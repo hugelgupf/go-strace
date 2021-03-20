@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strace
+package straceprint
 
 import (
 	"encoding/binary"
@@ -23,28 +23,19 @@ import (
 	"time"
 
 	"github.com/hugelgupf/go-strace/internal/abi"
+	"github.com/hugelgupf/go-strace/strace"
 	"golang.org/x/sys/unix"
 )
 
-// Task is a Linux process.
-type Task interface {
-	// Read reads from the process at Addr to the interface{}
-	// and returns a byte count and error.
-	Read(addr Addr, v interface{}) (int, error)
-
-	// Name is a human-readable process identifier. E.g. PID or argv[0].
-	Name() string
-}
-
-func path(t Task, addr Addr) string {
-	path, err := ReadString(t, addr, unix.PathMax)
+func path(t strace.Task, addr strace.Addr) string {
+	path, err := strace.ReadString(t, addr, unix.PathMax)
 	if err != nil {
 		return fmt.Sprintf("%#x (error decoding path: %s)", addr, err)
 	}
 	return fmt.Sprintf("%#x %s", addr, path)
 }
 
-func utimensTimespec(t Task, addr Addr) string {
+func utimensTimespec(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -66,7 +57,7 @@ func utimensTimespec(t Task, addr Addr) string {
 	return fmt.Sprintf("%#x {sec=%v nsec=%s}", addr, tim.Sec, ns)
 }
 
-func timespec(t Task, addr Addr) string {
+func timespec(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -78,7 +69,7 @@ func timespec(t Task, addr Addr) string {
 	return fmt.Sprintf("%#x {sec=%v nsec=%v}", addr, tim.Sec, tim.Nsec)
 }
 
-func timeval(t Task, addr Addr) string {
+func timeval(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -91,7 +82,7 @@ func timeval(t Task, addr Addr) string {
 	return fmt.Sprintf("%#x {sec=%v usec=%v}", addr, tim.Sec, tim.Usec)
 }
 
-func utimbuf(t Task, addr Addr) string {
+func utimbuf(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -108,7 +99,7 @@ func fileMode(mode uint32) string {
 	return fmt.Sprintf("%#09o", mode&0x1ff)
 }
 
-func stat(t Task, addr Addr) string {
+func stat(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -120,35 +111,35 @@ func stat(t Task, addr Addr) string {
 	return fmt.Sprintf("%#x {dev=%d, ino=%d, mode=%s, nlink=%d, uid=%d, gid=%d, rdev=%d, size=%d, blksize=%d, blocks=%d, atime=%s, mtime=%s, ctime=%s}", addr, stat.Dev, stat.Ino, fileMode(stat.Mode), stat.Nlink, stat.Uid, stat.Gid, stat.Rdev, stat.Size, stat.Blksize, stat.Blocks, time.Unix(int64(stat.Atim.Sec), int64(stat.Atim.Nsec)), time.Unix(int64(stat.Mtim.Sec), int64(stat.Mtim.Nsec)), time.Unix(int64(stat.Ctim.Sec), int64(stat.Ctim.Nsec)))
 }
 
-func itimerval(t Task, addr Addr) string {
+func itimerval(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
 
 	interval := timeval(t, addr)
-	value := timeval(t, addr+Addr(binary.Size(unix.Timeval{})))
+	value := timeval(t, addr+strace.Addr(binary.Size(unix.Timeval{})))
 	return fmt.Sprintf("%#x {interval=%s, value=%s}", addr, interval, value)
 }
 
-func itimerspec(t Task, addr Addr) string {
+func itimerspec(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
 
 	interval := timespec(t, addr)
-	value := timespec(t, addr+Addr(binary.Size(unix.Timespec{})))
+	value := timespec(t, addr+strace.Addr(binary.Size(unix.Timespec{})))
 	return fmt.Sprintf("%#x {interval=%s, value=%s}", addr, interval, value)
 }
 
-func stringVector(t Task, addr Addr) string {
-	vs, err := ReadStringVector(t, addr, ExecMaxElemSize, ExecMaxTotalSize)
+func stringVector(t strace.Task, addr strace.Addr) string {
+	vs, err := strace.ReadStringVector(t, addr, strace.ExecMaxElemSize, strace.ExecMaxTotalSize)
 	if err != nil {
 		return fmt.Sprintf("%#x {error copying vector: %v}", addr, err)
 	}
 	return fmt.Sprintf("%q", vs)
 }
 
-func rusage(t Task, addr Addr) string {
+func rusage(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -164,7 +155,7 @@ func rusage(t Task, addr Addr) string {
 // cannot be interpreted before the system call is executed, then a hex value
 // will be used. Note that a full output slice will always be provided, that is
 // len(return) == len(args).
-func (i *SyscallInfo) pre(t Task, args SyscallArguments, maximumBlobSize uint) []string {
+func (i *SyscallInfo) pre(t strace.Task, args strace.SyscallArguments, maximumBlobSize uint) []string {
 	var output []string
 	for arg := range args {
 		if arg >= len(i.format) {
@@ -236,7 +227,7 @@ func (i *SyscallInfo) pre(t Task, args SyscallArguments, maximumBlobSize uint) [
 // post fills in the post-execution arguments for a system call. This modifies
 // the given output slice in place with arguments that may only be interpreted
 // after the system call has been executed.
-func (i *SyscallInfo) post(t Task, args SyscallArguments, rval SyscallArgument, output []string, maximumBlobSize uint) {
+func (i *SyscallInfo) post(t strace.Task, args strace.SyscallArguments, rval strace.SyscallArgument, output []string, maximumBlobSize uint) {
 	for arg := range output {
 		if arg >= len(i.format) {
 			break
@@ -284,7 +275,7 @@ func (i *SyscallInfo) post(t Task, args SyscallArguments, rval SyscallArgument, 
 }
 
 // printEntry prints the given system call entry.
-func (i *SyscallInfo) printEnter(t Task, args SyscallArguments) string {
+func (i *SyscallInfo) printEnter(t strace.Task, args strace.SyscallArguments) string {
 	o := i.pre(t, args, LogMaximumSize)
 	switch len(o) {
 	case 0:
@@ -307,7 +298,7 @@ func (i *SyscallInfo) printEnter(t Task, args SyscallArguments) string {
 
 }
 
-func SysCallEnter(t Task, s *SyscallEvent) string {
+func SysCallEnter(t strace.Task, s *strace.SyscallEvent) string {
 	i := defaultSyscallInfo(s.Sysno)
 	if v, ok := syscalls[uintptr(s.Sysno)]; ok {
 		*i = v
@@ -315,7 +306,7 @@ func SysCallEnter(t Task, s *SyscallEvent) string {
 	return i.printEnter(t, s.Args)
 }
 
-func SysCallExit(t Task, s *SyscallEvent) string {
+func SysCallExit(t strace.Task, s *strace.SyscallEvent) string {
 	i := defaultSyscallInfo(s.Sysno)
 	if v, ok := syscalls[uintptr(s.Sysno)]; ok {
 		*i = v
@@ -324,7 +315,7 @@ func SysCallExit(t Task, s *SyscallEvent) string {
 }
 
 // printExit prints the given system call exit.
-func (i *SyscallInfo) printExit(t Task, elapsed time.Duration, args SyscallArguments, retval SyscallArgument, errno unix.Errno) string {
+func (i *SyscallInfo) printExit(t strace.Task, elapsed time.Duration, args strace.SyscallArguments, retval strace.SyscallArgument, errno unix.Errno) string {
 	// Eventually, we'll be able to cache o and look at the entry record's output.
 	o := i.pre(t, args, LogMaximumSize)
 	var rval string

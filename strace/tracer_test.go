@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package strace
+package strace_test
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hugelgupf/go-strace/strace"
+	"github.com/hugelgupf/go-strace/straceprint"
 	"github.com/u-root/u-root/pkg/uio/uiotest"
 )
 
@@ -36,18 +38,18 @@ func prepareTestCmd(t *testing.T, cmd string) {
 	}
 }
 
-func runAndCollectTrace(t *testing.T, cmd *exec.Cmd) []*TraceRecord {
+func runAndCollectTrace(t *testing.T, cmd *exec.Cmd) []*strace.TraceRecord {
 	// Write strace logs to t.Logf.
 	w := uiotest.TestLineWriter(t, "")
-	traceChan := make(chan *TraceRecord)
+	traceChan := make(chan *strace.TraceRecord)
 	done := make(chan error, 1)
 
 	go func() {
-		done <- Trace(cmd, PrintTraces(w), RecordTraces(traceChan))
+		done <- strace.Trace(cmd, straceprint.PrintTraces(w), strace.RecordTraces(traceChan))
 		close(traceChan)
 	}()
 
-	var events []*TraceRecord
+	var events []*strace.TraceRecord
 	for r := range traceChan {
 		events = append(events, r)
 	}

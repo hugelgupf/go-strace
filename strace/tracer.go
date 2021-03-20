@@ -11,7 +11,6 @@ package strace
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -22,6 +21,19 @@ import (
 	"github.com/hugelgupf/go-strace/internal/ubinary"
 	"golang.org/x/sys/unix"
 )
+
+// Addr is an address for use in strace I/O
+type Addr uintptr
+
+// Task is a Linux process.
+type Task interface {
+	// Read reads from the process at Addr to the interface{}
+	// and returns a byte count and error.
+	Read(addr Addr, v interface{}) (int, error)
+
+	// Name is a human-readable process identifier. E.g. PID or argv[0].
+	Name() string
+}
 
 func wait(pid int) (int, unix.WaitStatus, error) {
 	var w unix.WaitStatus
@@ -431,38 +443,10 @@ func RecordTraces(c chan<- *TraceRecord) EventCallback {
 	}
 }
 
-func signalString(s unix.Signal) string {
-	if 0 <= s && int(s) < len(signals) {
-		return fmt.Sprintf("%s (%d)", signals[s], int(s))
-	}
-	return fmt.Sprintf("signal %d", int(s))
-}
-
-// PrintTraces prints every trace event to w.
-func PrintTraces(w io.Writer) EventCallback {
-	return func(t Task, record *TraceRecord) error {
-		switch record.Event {
-		case SyscallEnter:
-			fmt.Fprintln(w, SysCallEnter(t, record.Syscall))
-		case SyscallExit:
-			fmt.Fprintln(w, SysCallExit(t, record.Syscall))
-		case SignalExit:
-			fmt.Fprintf(w, "PID %d exited from signal %s\n", record.PID, signalString(record.SignalExit.Signal))
-		case Exit:
-			fmt.Fprintf(w, "PID %d exited from exit status %d (code = %d)\n", record.PID, record.Exit.WaitStatus, record.Exit.WaitStatus.ExitStatus())
-		case SignalStop:
-			fmt.Fprintf(w, "PID %d got signal %s\n", record.PID, signalString(record.SignalStop.Signal))
-		case NewChild:
-			fmt.Fprintf(w, "PID %d spawned new child %d\n", record.PID, record.NewChild.PID)
-		}
-		return nil
-	}
-}
-
 // Strace traces and prints process events for `c` and its children to `out`.
-func Strace(c *exec.Cmd, out io.Writer) error {
+/*func Strace(c *exec.Cmd, out io.Writer) error {
 	return Trace(c, PrintTraces(out))
-}
+}*/
 
 // EventType describes a process event.
 type EventType int
