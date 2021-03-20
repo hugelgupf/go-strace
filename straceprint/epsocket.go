@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strace
+package straceprint
 
 import (
 	"bytes"
@@ -20,16 +20,17 @@ import (
 	"strings"
 
 	"github.com/hugelgupf/go-strace/internal/ubinary"
+	"github.com/hugelgupf/go-strace/strace"
 	"golang.org/x/sys/unix"
 )
 
-// Address is a byte slice cast as a string that represents the address of a
+// NetAddress is a byte slice cast as a string that represents the address of a
 // network node. Or, in the case of unix endpoints, it may represent a path.
-type Address string
+type NetAddress string
 
-type FullAddress struct {
+type FullNetAddress struct {
 	// Addr is the network address.
-	Addr Address
+	Addr NetAddress
 
 	// Port is the transport port.
 	//
@@ -38,13 +39,13 @@ type FullAddress struct {
 }
 
 // GetAddress reads an sockaddr struct from the given address and converts it
-// to the FullAddress format. It supports AF_UNIX, AF_INET and AF_INET6
+// to the FullNetAddress format. It supports AF_UNIX, AF_INET and AF_INET6
 // addresses.
-func GetAddress(t Task, addr []byte) (FullAddress, error) {
+func GetAddress(t strace.Task, addr []byte) (FullNetAddress, error) {
 	r := bytes.NewBuffer(addr[:2])
 	var fam uint16
 	if err := binary.Read(r, ubinary.NativeEndian, &fam); err != nil {
-		return FullAddress{}, unix.EFAULT
+		return FullNetAddress{}, unix.EFAULT
 	}
 
 	// Get the rest of the fields based on the address family.
@@ -52,7 +53,7 @@ func GetAddress(t Task, addr []byte) (FullAddress, error) {
 	case unix.AF_UNIX:
 		path := addr[2:]
 		if len(path) > unix.PathMax {
-			return FullAddress{}, unix.EINVAL
+			return FullNetAddress{}, unix.EINVAL
 		}
 		// Drop the terminating NUL (if one exists) and everything after
 		// it for filesystem (non-abstract) addresses.
@@ -61,18 +62,18 @@ func GetAddress(t Task, addr []byte) (FullAddress, error) {
 				path = path[:n+1]
 			}
 		}
-		return FullAddress{
-			Addr: Address(path),
+		return FullNetAddress{
+			Addr: NetAddress(path),
 		}, nil
 
 	case unix.AF_INET:
 		var a unix.RawSockaddrInet4
 		r = bytes.NewBuffer(addr)
 		if err := binary.Read(r, binary.BigEndian, &a); err != nil {
-			return FullAddress{}, unix.EFAULT
+			return FullNetAddress{}, unix.EFAULT
 		}
-		out := FullAddress{
-			Addr: Address(a.Addr[:]),
+		out := FullNetAddress{
+			Addr: NetAddress(a.Addr[:]),
 			Port: uint16(a.Port),
 		}
 		if out.Addr == "\x00\x00\x00\x00" {
@@ -84,11 +85,11 @@ func GetAddress(t Task, addr []byte) (FullAddress, error) {
 		var a unix.RawSockaddrInet6
 		r = bytes.NewBuffer(addr)
 		if err := binary.Read(r, binary.BigEndian, &a); err != nil {
-			return FullAddress{}, unix.EFAULT
+			return FullNetAddress{}, unix.EFAULT
 		}
 
-		out := FullAddress{
-			Addr: Address(a.Addr[:]),
+		out := FullNetAddress{
+			Addr: NetAddress(a.Addr[:]),
 			Port: uint16(a.Port),
 		}
 
@@ -96,12 +97,12 @@ func GetAddress(t Task, addr []byte) (FullAddress, error) {
 		//			out.NIC = NICID(a.Scope_id)
 		//}
 
-		if out.Addr == Address(strings.Repeat("\x00", 16)) {
+		if out.Addr == NetAddress(strings.Repeat("\x00", 16)) {
 			out.Addr = ""
 		}
 		return out, nil
 
 	default:
-		return FullAddress{}, unix.ENOTSUP
+		return FullNetAddress{}, unix.ENOTSUP
 	}
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strace
+package straceprint
 
 import (
 	"fmt"
@@ -21,10 +21,11 @@ import (
 	"github.com/hugelgupf/go-strace/internal/abi"
 	"github.com/hugelgupf/go-strace/internal/binary"
 	"github.com/hugelgupf/go-strace/internal/ubinary"
+	"github.com/hugelgupf/go-strace/strace"
 	"golang.org/x/sys/unix"
 )
 
-func cmsghdr(t Task, addr Addr, length uint64, maxBytes uint64) string {
+func cmsghdr(t strace.Task, addr strace.Addr, length uint64, maxBytes uint64) string {
 	if length > maxBytes {
 		return fmt.Sprintf("%#x (error decoding control: invalid length (%d))", addr, length)
 	}
@@ -156,7 +157,7 @@ func cmsghdr(t Task, addr Addr, length uint64, maxBytes uint64) string {
 	return fmt.Sprintf("%#x %s", addr, strings.Join(strs, ", "))
 }
 
-func msghdr(t Task, addr Addr, printContent bool, maxBytes uint64) string {
+func msghdr(t strace.Task, addr strace.Addr, printContent bool, maxBytes uint64) string {
 	var msg abi.MessageHeader64
 	if _, err := t.Read(addr, &msg); err != nil {
 		return fmt.Sprintf("%#x (error decoding msghdr: %v)", addr, err)
@@ -167,22 +168,22 @@ func msghdr(t Task, addr Addr, printContent bool, maxBytes uint64) string {
 		addr,
 		msg.Name,
 		msg.NameLen,
-		iovecs(t, Addr(msg.Iov), int(msg.IovLen), printContent, maxBytes),
+		iovecs(t, strace.Addr(msg.Iov), int(msg.IovLen), printContent, maxBytes),
 	)
 	if printContent {
-		s = fmt.Sprintf("%s, control={%s}", s, cmsghdr(t, Addr(msg.Control), msg.ControlLen, maxBytes))
+		s = fmt.Sprintf("%s, control={%s}", s, cmsghdr(t, strace.Addr(msg.Control), msg.ControlLen, maxBytes))
 	} else {
 		s = fmt.Sprintf("%s, control=%#x, control_len=%d", s, msg.Control, msg.ControlLen)
 	}
 	return fmt.Sprintf("%s, flags=%d}", s, msg.Flags)
 }
 
-func sockAddr(t Task, addr Addr, length uint32) string {
+func sockAddr(t strace.Task, addr strace.Addr, length uint32) string {
 	if addr == 0 {
 		return "null"
 	}
 
-	b, err := CaptureAddress(t, addr, length)
+	b, err := strace.CaptureAddress(t, addr, length)
 	if err != nil {
 		return fmt.Sprintf("%#x {error reading address: %v}", addr, err)
 	}
@@ -218,7 +219,7 @@ func sockAddr(t Task, addr Addr, length uint32) string {
 	}
 }
 
-func postSockAddr(t Task, addr Addr, lengthPtr Addr) string {
+func postSockAddr(t strace.Task, addr strace.Addr, lengthPtr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
@@ -235,14 +236,14 @@ func postSockAddr(t Task, addr Addr, lengthPtr Addr) string {
 	return sockAddr(t, addr, l)
 }
 
-func copySockLen(t Task, addr Addr) (uint32, error) {
+func copySockLen(t strace.Task, addr strace.Addr) (uint32, error) {
 	// socklen_t is 32-bits.
 	var l uint32
 	_, err := t.Read(addr, &l)
 	return l, err
 }
 
-func sockLenPointer(t Task, addr Addr) string {
+func sockLenPointer(t strace.Task, addr strace.Addr) string {
 	if addr == 0 {
 		return "null"
 	}
